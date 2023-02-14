@@ -1,6 +1,6 @@
 ## INSTRUCCIONES
 
-1.
+1. Ejecutar los sig. comandos en la terminal
 ~~~
 - node init
 - npm i whastapp-web.js
@@ -9,5 +9,4 @@
 - npm i qrcode-terminal
 ~~~
 
-2.
-Crear carpeta **upload**
+2. Crear carpeta **upload**
