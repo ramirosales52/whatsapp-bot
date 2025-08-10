@@ -1,25 +1,30 @@
 const { GoogleGenAI } = require("@google/genai");
 const qrcode = require('qrcode-terminal');
 const dotenv = require("dotenv")
+const schedule = require("node-schedule");
 
 dotenv.config()
 
 const { Client, LocalAuth } = require('whatsapp-web.js');
 
 const client = new Client({
-  authStrategy: new LocalAuth()
+  authStrategy: new LocalAuth(),
+  puppeteer: {
+    headless: true,
+    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    executablePath: "/usr/bin/google-chrome-stable"
+  }
 });
 
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY
 });
 
-
 client.on("qr", (qr) => {
   qrcode.generate(qr, { small: true });
 });
 
-client.on('authenticated', (session) => {
+client.on('authenticated', () => {
   console.log('WHATSAPP WEB => Authenticated');
 });
 
@@ -34,7 +39,6 @@ client.on('message', message => {
 });
 
 client.on('message', async msg => {
-
   if (msg.body === 'Sticker') {
     if (msg.hasMedia) {
       msg.downloadMedia().then(media => {
@@ -107,7 +111,7 @@ client.on('message', async msg => {
   }
 
   if (msg.body.startsWith('!ia ')) {
-    const prompt = msg.body.slice(4).trim();
+    const prompt = msg.body.slice(3).trim();
     if (!prompt) return msg.reply("Escribí algo despues de `!ia`");
 
     try {
@@ -123,6 +127,81 @@ client.on('message', async msg => {
     } catch (error) {
       console.error("Error con Gemini:", error);
       msg.reply("Error con la ia");
+    }
+  }
+
+  if (msg.body.startsWith("!programar")) {
+    try {
+      const args = msg.body.split(" ");
+      if (args.length < 4) {
+        return msg.reply("Formato inválido. Usa: !programar dd/mm/yyyy hh:mm mensaje");
+      }
+
+      const fechaStr = args[1];
+      const horaStr = args[2];
+      const mensaje = args.slice(3).join(" ");
+
+      const [dia, mes, anio] = fechaStr.split("/").map(Number);
+      const [hora, minutos] = horaStr.split(":").map(Number);
+
+      const fecha = new Date(anio, mes - 1, dia, hora, minutos);
+
+      // Chequeo rápido
+      if (isNaN(fecha.getTime())) {
+        return msg.reply("Fecha/hora inválida.");
+      }
+      if (fecha <= new Date()) {
+        return msg.reply("La fecha/hora debe ser en el futuro.");
+      }
+
+      schedule.scheduleJob(fecha, () => {
+        client.sendMessage(msg.from, mensaje);
+      });
+
+      msg.reply(`Mensaje programado para el ${fechaStr} a las ${horaStr}`);
+    } catch (err) {
+      console.error("Error al programar mensaje:", err);
+      msg.reply("Hubo un error al programar el mensaje.");
+    }
+  }
+
+  if (msg.body.startsWith("!resumen")) {
+    try {
+      const args = msg.body.trim().split(/\s+/);
+      if (args.length !== 2 || isNaN(parseInt(args[1]))) {
+        return msg.reply("Uso: !resumen [cantMensajes] (1 a 50)");
+      }
+
+      let cantidad = parseInt(args[1]);
+      if (cantidad < 1) cantidad = 1;
+      if (cantidad > 50) cantidad = 50;
+
+      const chat = await msg.getChat();
+      const mensajes = await chat.fetchMessages({ limit: cantidad + 1 });
+
+      const textoMensajes = mensajes
+        .filter(m => m.id._serialized !== msg.id._serialized)
+        .reverse()
+        .map(m => `${m._data.notifyName || m.from}: ${m.body}`)
+        .join("\n");
+
+      const prompt = `Resumí estos últimos ${cantidad} mensajes del chat: ${textoMensajes}`;
+
+      const response = await genAI.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: prompt,
+        config: {
+          systemInstruction: "Resume los siguientes mensajes de WhatsApp de forma breve y clara."
+        }
+      });
+
+      msg.reply(
+        response.text || "No pude generar el resumen."
+      );
+
+    } catch (error) {
+      console.error("Error en resumen:", error);
+      msg.reply("Error al generar el resumen.");
     }
   }
 });
