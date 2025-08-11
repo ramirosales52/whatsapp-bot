@@ -134,35 +134,72 @@ client.on('message', async msg => {
     try {
       const args = msg.body.split(" ");
       if (args.length < 4) {
-        return msg.reply("Formato inválido. Usa: !programar dd/mm/yyyy hh:mm mensaje");
+        return msg.reply("Uso: !programar [dd/mm/yyyy|hoy|mañana] hh:mm mensaje");
       }
 
+      let fecha;
       const fechaStr = args[1];
       const horaStr = args[2];
       const mensaje = args.slice(3).join(" ");
 
-      const [dia, mes, anio] = fechaStr.split("/").map(Number);
       const [hora, minutos] = horaStr.split(":").map(Number);
 
-      const fecha = new Date(anio, mes - 1, dia, hora, minutos);
-
-      // Chequeo rápido
-      if (isNaN(fecha.getTime())) {
-        return msg.reply("Fecha/hora inválida.");
+      if (fechaStr.toLowerCase() === "hoy") {
+        const ahora = new Date();
+        fecha = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate(), hora, minutos);
       }
-      if (fecha < new Date()) {
-        return msg.reply("La fecha/hora debe ser en el futuro: ", fecha);
+      else if (fechaStr.toLowerCase() === "mañana") {
+        const ahora = new Date();
+        fecha = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate() + 1, hora, minutos);
+      }
+      else {
+        const [dia, mes, anio] = fechaStr.split("/").map(Number);
+        fecha = new Date(anio, mes - 1, dia, hora, minutos);
       }
 
-      schedule.scheduleJob(fecha, () => {
+      if (isNaN(fecha.getTime())) return msg.reply("⚠️ Fecha/hora inválida.");
+      if (fecha <= new Date()) return msg.reply("⚠️ La fecha/hora debe ser en el futuro.");
+
+      const id = contadorId++;
+      const job = schedule.scheduleJob(fecha, () => {
         client.sendMessage(msg.from, mensaje);
+        tareasProgramadas = tareasProgramadas.filter(t => t.id !== id);
       });
 
-      msg.reply(`Mensaje programado para el ${fechaStr} a las ${horaStr}: ${mensaje}`);
+      tareasProgramadas.push({ id, fecha, mensaje, job });
+      msg.reply(`📅 Mensaje #${id} programado para ${fecha.toLocaleString()}`);
+
     } catch (err) {
-      console.error("Error al programar mensaje:", err);
-      msg.reply("Hubo un error al programar el mensaje.");
+      console.error("Error programando mensaje:", err);
+      msg.reply("❌ Error al programar el mensaje.");
     }
+  }
+
+  if (msg.body === "!listaprog") {
+    if (tareasProgramadas.length === 0) {
+      return msg.reply("No hay mensajes programados.");
+    }
+    const lista = tareasProgramadas
+      .map(t => `#${t.id} → ${t.fecha.toLocaleString()} → "${t.mensaje}"`)
+      .join("\n");
+    msg.reply("Mensajes programados:\n" + lista);
+  }
+
+  // Borrar mensaje programado
+  if (msg.body.startsWith("!borrarprog")) {
+    const args = msg.body.split(" ");
+    if (args.length !== 2 || isNaN(parseInt(args[1]))) {
+      return msg.reply("Uso: !borrarprog [id]");
+    }
+
+    const id = parseInt(args[1]);
+    const tarea = tareasProgramadas.find(t => t.id === id);
+
+    if (!tarea) return msg.reply(`No existe una tarea con ID ${id}`);
+
+    tarea.job.cancel();
+    tareasProgramadas = tareasProgramadas.filter(t => t.id !== id);
+    msg.reply(`Mensaje programado #${id} cancelado.`);
   }
 
   if (msg.body.startsWith("!resumen")) {
@@ -203,6 +240,25 @@ client.on('message', async msg => {
       console.error("Error en resumen:", error);
       msg.reply("Error al generar el resumen.");
     }
+  }
+
+  if (msg.body === "!comandos") {
+    const texto = `
+*Lista de comandos disponibles:*
+
+- !memide
+- !facha
+- !programar [dd/mm/yyyy|hoy|mañana] hh:mm mensaje → Programa un mensaje
+- !listaprog → Lista de mensajes programados
+- !borrarprog [id] → Borra un mensaje programado
+- !ia [mensaje] → Pregúntale algo a la IA
+- !resumen [cantMensajes] → Resume últimos mensajes (máx 50)
+- !sorteo → Sortea entre los participantes del grupo
+- @todos → Menciona a todos en el grupo
+- Enviar foto/video/gif con la palabra "Sticker" → Convierte en sticker
+        `.trim();
+
+    msg.reply(texto);
   }
 });
 
