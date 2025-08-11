@@ -150,15 +150,15 @@ client.on('message', async msg => {
       if (isNaN(fecha.getTime())) {
         return msg.reply("Fecha/hora inválida.");
       }
-      if (fecha <= new Date()) {
-        return msg.reply("La fecha/hora debe ser en el futuro.");
+      if (fecha < new Date()) {
+        return msg.reply("La fecha/hora debe ser en el futuro: ", fecha);
       }
 
       schedule.scheduleJob(fecha, () => {
         client.sendMessage(msg.from, mensaje);
       });
 
-      msg.reply(`Mensaje programado para el ${fechaStr} a las ${horaStr}`);
+      msg.reply(`Mensaje programado para el ${fechaStr} a las ${horaStr}: ${mensaje}`);
     } catch (err) {
       console.error("Error al programar mensaje:", err);
       msg.reply("Hubo un error al programar el mensaje.");
@@ -187,7 +187,7 @@ client.on('message', async msg => {
 
       const prompt = `Resumí estos últimos ${cantidad} mensajes del chat: ${textoMensajes}`;
 
-      const response = await genAI.models.generateContent({
+      const response = await ai.models.generateContent({
         model: "gemini-2.5-flash",
         contents: prompt,
         config: {
