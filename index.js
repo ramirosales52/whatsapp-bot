@@ -170,9 +170,7 @@ client.on('message', async msg => {
       if (!fecha.isValid) return msg.reply("Fecha/hora inválida.");
       if (fechaJS <= new Date()) return msg.reply("La fecha/hora debe ser en el futuro.");
 
-      // -----------------------------
       // MENCIONES
-      // -----------------------------
       const mentions = [];
       let mensaje = mensajeOriginal;
 
@@ -208,7 +206,7 @@ client.on('message', async msg => {
         tareasProgramadas = tareasProgramadas.filter(t => t.id !== id);
       });
 
-      tareasProgramadas.push({ id, fecha, mensaje, job, chatId: msg.from });
+      tareasProgramadas.push({ id, fecha, mensaje, mentions, job, chatId: msg.from });
       msg.reply(
         `Mensaje #${id} programado para ${fecha.setLocale("es").toLocaleString({
           day: "2-digit",
@@ -241,7 +239,9 @@ client.on('message', async msg => {
           hour: "2-digit",
           minute: "2-digit",
           hour12: true
-        })} → "${t.mensaje}"`
+        })} → "${t.mensaje}"`,
+        undefined,
+        { mentions: t.mentions }
       )
       .join("\n");
     msg.reply("*Mensajes programados en este chat:*\n" + lista);
