@@ -240,11 +240,12 @@ client.on('message', async msg => {
           minute: "2-digit",
           hour12: true
         })} → "${t.mensaje}"`,
-        undefined,
-        { mentions: t.mentions }
       )
       .join("\n");
-    msg.reply("*Mensajes programados en este chat:*\n" + lista);
+    msg.reply(`*Mensajes programados en este chat:*\n ${lista}`,
+      undefined,
+      { mentions: t.mentions }
+    );
   }
 
   // Borrar mensaje programado
