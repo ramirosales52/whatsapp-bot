@@ -155,12 +155,10 @@ client.on('message', async msg => {
         const ahora = DateTime.now().setZone("America/Argentina/Buenos_Aires");
         fecha = ahora.set({ hour: hora, minute: minutos, second: 0, millisecond: 0 });
         if (fecha <= ahora) return msg.reply("Poné una hora futura.");
-      }
-      else if (fechaStr.toLowerCase() === "mañana") {
+      } else if (fechaStr.toLowerCase() === "mañana") {
         const ahora = DateTime.now().setZone("America/Argentina/Buenos_Aires");
         fecha = ahora.plus({ days: 1 }).set({ hour: hora, minute: minutos, second: 0, millisecond: 0 });
-      }
-      else {
+      } else {
         const [dia, mes, anio] = fechaStr.split("/").map(Number);
         fecha = DateTime.fromObject(
           { day: dia, month: mes, year: anio, hour: hora, minute: minutos, second: 0, millisecond: 0 },
@@ -172,31 +170,45 @@ client.on('message', async msg => {
       if (!fecha.isValid) return msg.reply("Fecha/hora inválida.");
       if (fechaJS <= new Date()) return msg.reply("La fecha/hora debe ser en el futuro.");
 
-      // Obtener menciones
+      // -----------------------------
+      // MENCIONES: usar msg.mentionedIds y @yo
+      // -----------------------------
       const mentions = [];
+      let mensaje = mensajeOriginal;
 
-      // Si el mensaje ya tiene menciones hechas en WhatsApp
+      // Si el usuario hizo menciones desde el cliente oficial, msg.mentionedIds ya trae los IDs.
       if (msg.mentionedIds && msg.mentionedIds.length > 0) {
         for (const id of msg.mentionedIds) {
-          const contact = await client.getContactById(id);
-          mentions.push(contact);
+          // id puede venir como '54911xxxxxxx@c.us' o '54911xxxxxxx'
+          const jid = id.includes("@") ? id : `${id}@c.us`;
+          mentions.push(jid);
         }
       }
 
-      // @yo → autor
-      if (mensajeOriginal.includes("@yo")) {
-        const authorContact = await msg.getContact();
-        mentions.push(authorContact);
+      // @yo -> agregar al autor y reemplazar el texto para que quede como @<user>
+      if (mensaje.includes("@yo")) {
+        const authorContact = await msg.getContact(); // Contact
+        // obtener jid serializado (ej: '54911xxxxxxx@c.us')
+        const authorJid = authorContact?.id?._serialized
+          ? authorContact.id._serialized
+          : (authorContact.number ? `${authorContact.number}@c.us` : null);
+
+        if (authorJid) {
+          mentions.push(authorJid);
+          // userOnly: '54911xxxxxxx' (sin @c.us) — WhatsApp renderiza la mención si el texto contiene @<userOnly>
+          const userOnly = authorContact?.id?.user ?? (authorContact.number ?? authorJid.replace('@c.us', ''));
+          mensaje = mensaje.replace(/@yo/g, `@${userOnly}`);
+        }
       }
 
       const id = contadorId++;
       const job = schedule.scheduleJob(fechaJS, () => {
-        client.sendMessage(msg.from, mensajeOriginal, { mentions });
+        // enviar texto tal cual (con @<user> para las menciones) y options.mentions como array de jids.
+        client.sendMessage(msg.from, mensaje, { mentions });
         tareasProgramadas = tareasProgramadas.filter(t => t.id !== id);
       });
 
-      tareasProgramadas.push({ id, fecha, mensaje: mensajeOriginal, job, chatId: msg.from });
-
+      tareasProgramadas.push({ id, fecha, mensaje, job, chatId: msg.from });
       msg.reply(
         `Mensaje #${id} programado para ${fecha.setLocale("es").toLocaleString({
           day: "2-digit",
@@ -213,6 +225,7 @@ client.on('message', async msg => {
       msg.reply("Error al programar el mensaje.");
     }
   }
+
   // Lista solo del chat actual
   if (msg.body === "!listaprog") {
     const listaChat = tareasProgramadas.filter(t => t.chatId === msg.from);
