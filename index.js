@@ -7,13 +7,16 @@ dotenv.config()
 
 const { Client, LocalAuth } = require('whatsapp-web.js');
 
+let tareasProgramadas = [];
+let contadorId = 1;
+
 const client = new Client({
   authStrategy: new LocalAuth(),
-  puppeteer: {
-    headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
-    executablePath: "/usr/bin/google-chrome-stable"
-  }
+  // puppeteer: {
+  //   headless: true,
+  //   args: ["--no-sandbox", "--disable-setuid-sandbox"],
+  //   executablePath: "/usr/bin/google-chrome-stable"
+  // }
 });
 
 const ai = new GoogleGenAI({
@@ -130,7 +133,7 @@ client.on('message', async msg => {
     }
   }
 
-  if (msg.body.startsWith("!programar")) {
+  if (msg.body.startsWith("!programar ")) {
     try {
       const args = msg.body.split(" ");
       if (args.length < 4) {
@@ -157,8 +160,8 @@ client.on('message', async msg => {
         fecha = new Date(anio, mes - 1, dia, hora, minutos);
       }
 
-      if (isNaN(fecha.getTime())) return msg.reply("⚠️ Fecha/hora inválida.");
-      if (fecha <= new Date()) return msg.reply("⚠️ La fecha/hora debe ser en el futuro.");
+      if (isNaN(fecha.getTime())) return msg.reply("Fecha/hora inválida.");
+      if (fecha <= new Date()) return msg.reply("La fecha/hora debe ser en el futuro.");
 
       const id = contadorId++;
       const job = schedule.scheduleJob(fecha, () => {
@@ -171,7 +174,7 @@ client.on('message', async msg => {
 
     } catch (err) {
       console.error("Error programando mensaje:", err);
-      msg.reply("❌ Error al programar el mensaje.");
+      msg.reply("Error al programar el mensaje.");
     }
   }
 
