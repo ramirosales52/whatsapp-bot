@@ -153,7 +153,7 @@ client.on('message', async msg => {
         fecha = ahora.set({ hour: hora, minute: minutos, second: 0, millisecond: 0 });
 
         if (fecha <= ahora) {
-          return msg.reply("⚠️ La hora para hoy ya pasó, poné una hora futura.");
+          return msg.reply("Poné una hora futura.");
         }
       }
       else if (fechaStr.toLowerCase() === "mañana") {
@@ -171,17 +171,17 @@ client.on('message', async msg => {
       // Convierte a objeto JS Date para node-schedule:
       const fechaJS = fecha.toJSDate();
 
-      if (!fecha.isValid) return msg.reply("⚠️ Fecha/hora inválida.");
-      if (fechaJS <= new Date()) return msg.reply("⚠️ La fecha/hora debe ser en el futuro.");
+      if (!fecha.isValid) return msg.reply("Fecha/hora inválida.");
+      if (fechaJS <= new Date()) return msg.reply("La fecha/hora debe ser en el futuro.");
 
       const id = contadorId++;
-      const job = schedule.scheduleJob(fecha, () => {
+      const job = schedule.scheduleJob(fechaJS, () => {
         client.sendMessage(msg.from, mensaje);
         tareasProgramadas = tareasProgramadas.filter(t => t.id !== id);
       });
 
       tareasProgramadas.push({ id, fecha, mensaje, job });
-      msg.reply(`Mensaje #${id} programado para ${fecha.toLocaleString()}`);
+      msg.reply(`Mensaje #${id} programado para ${fecha.setLocale("es").toLocaleString(DateTime.DATETIME_MED)}: ${mensaje}`);
 
     } catch (err) {
       console.error("Error programando mensaje:", err);
