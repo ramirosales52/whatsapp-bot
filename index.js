@@ -2,6 +2,7 @@ const { GoogleGenAI } = require("@google/genai");
 const qrcode = require('qrcode-terminal');
 const dotenv = require("dotenv")
 const schedule = require("node-schedule");
+const { DateTime } = require("luxon");
 
 dotenv.config()
 
@@ -12,11 +13,11 @@ let contadorId = 1;
 
 const client = new Client({
   authStrategy: new LocalAuth(),
-  // puppeteer: {
-  //   headless: true,
-  //   args: ["--no-sandbox", "--disable-setuid-sandbox"],
-  //   executablePath: "/usr/bin/google-chrome-stable"
-  // }
+  puppeteer: {
+    headless: true,
+    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    executablePath: "/usr/bin/google-chrome-stable"
+  }
 });
 
 const ai = new GoogleGenAI({
@@ -148,20 +149,30 @@ client.on('message', async msg => {
       const [hora, minutos] = horaStr.split(":").map(Number);
 
       if (fechaStr.toLowerCase() === "hoy") {
-        const ahora = new Date();
-        fecha = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate(), hora, minutos);
+        const ahora = DateTime.now().setZone("America/Argentina/Buenos_Aires");
+        fecha = ahora.set({ hour: hora, minute: minutos, second: 0, millisecond: 0 });
+
+        if (fecha <= ahora) {
+          return msg.reply("⚠️ La hora para hoy ya pasó, poné una hora futura.");
+        }
       }
       else if (fechaStr.toLowerCase() === "mañana") {
-        const ahora = new Date();
-        fecha = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate() + 1, hora, minutos);
+        const ahora = DateTime.now().setZone("America/Argentina/Buenos_Aires");
+        fecha = ahora.plus({ days: 1 }).set({ hour: hora, minute: minutos, second: 0, millisecond: 0 });
       }
       else {
         const [dia, mes, anio] = fechaStr.split("/").map(Number);
-        fecha = new Date(anio, mes - 1, dia, hora, minutos);
+        fecha = DateTime.fromObject(
+          { day: dia, month: mes, year: anio, hour: hora, minute: minutos, second: 0, millisecond: 0 },
+          { zone: "America/Argentina/Buenos_Aires" }
+        );
       }
 
-      if (isNaN(fecha.getTime())) return msg.reply("Fecha/hora inválida.");
-      if (fecha <= new Date()) return msg.reply("La fecha/hora debe ser en el futuro.");
+      // Convierte a objeto JS Date para node-schedule:
+      const fechaJS = fecha.toJSDate();
+
+      if (!fecha.isValid) return msg.reply("⚠️ Fecha/hora inválida.");
+      if (fechaJS <= new Date()) return msg.reply("⚠️ La fecha/hora debe ser en el futuro.");
 
       const id = contadorId++;
       const job = schedule.scheduleJob(fecha, () => {
@@ -170,7 +181,7 @@ client.on('message', async msg => {
       });
 
       tareasProgramadas.push({ id, fecha, mensaje, job });
-      msg.reply(`📅 Mensaje #${id} programado para ${fecha.toLocaleString()}`);
+      msg.reply(`Mensaje #${id} programado para ${fecha.toLocaleString()}`);
 
     } catch (err) {
       console.error("Error programando mensaje:", err);
