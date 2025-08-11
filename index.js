@@ -217,7 +217,7 @@ client.on('message', async msg => {
           hour: "2-digit",
           minute: "2-digit",
           hour12: false
-        })}: *${mensajeOriginal}*`, undefined, { mentions }
+        })}: *${mensaje}*`, undefined, { mentions }
       );
 
     } catch (err) {
