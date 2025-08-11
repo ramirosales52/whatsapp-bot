@@ -171,7 +171,7 @@ client.on('message', async msg => {
       if (fechaJS <= new Date()) return msg.reply("La fecha/hora debe ser en el futuro.");
 
       // -----------------------------
-      // MENCIONES: usar msg.mentionedIds y @yo
+      // MENCIONES
       // -----------------------------
       const mentions = [];
       let mensaje = mensajeOriginal;
@@ -217,7 +217,7 @@ client.on('message', async msg => {
           hour: "2-digit",
           minute: "2-digit",
           hour12: false
-        })}: *${mensaje}*`, { mentions }
+        })}: *${mensajeOriginal}*`, undefined, { mentions }
       );
 
     } catch (err) {
