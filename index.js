@@ -230,8 +230,10 @@ client.on('message', async msg => {
     if (listaChat.length === 0) {
       return msg.reply("No hay mensajes programados en este chat.");
     }
-    const lista = listaChat
-      .map(t =>
+
+    for (const t of listaChat) {
+      client.sendMessage(
+        msg.from,
         `#${t.id} → ${t.fecha.setLocale("es").toLocaleString({
           day: "2-digit",
           month: "2-digit",
@@ -240,12 +242,9 @@ client.on('message', async msg => {
           minute: "2-digit",
           hour12: true
         })} → "${t.mensaje}"`,
-      )
-      .join("\n");
-    msg.reply(`*Mensajes programados en este chat:*\n ${lista}`,
-      undefined,
-      { mentions: t.mentions }
-    );
+        { mentions: t.mentions }
+      );
+    }
   }
 
   // Borrar mensaje programado
