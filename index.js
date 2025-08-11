@@ -179,7 +179,6 @@ client.on('message', async msg => {
       // Si el usuario hizo menciones desde el cliente oficial, msg.mentionedIds ya trae los IDs.
       if (msg.mentionedIds && msg.mentionedIds.length > 0) {
         for (const id of msg.mentionedIds) {
-          // id puede venir como '54911xxxxxxx@c.us' o '54911xxxxxxx'
           const jid = id.includes("@") ? id : `${id}@c.us`;
           mentions.push(jid);
         }
@@ -187,38 +186,50 @@ client.on('message', async msg => {
 
       // @yo -> agregar al autor y reemplazar el texto para que quede como @<user>
       if (mensaje.includes("@yo")) {
-        const authorContact = await msg.getContact(); // Contact
-        // obtener jid serializado (ej: '54911xxxxxxx@c.us')
+        const authorContact = await msg.getContact();
         const authorJid = authorContact?.id?._serialized
           ? authorContact.id._serialized
           : (authorContact.number ? `${authorContact.number}@c.us` : null);
 
         if (authorJid) {
           mentions.push(authorJid);
-          // userOnly: '54911xxxxxxx' (sin @c.us) — WhatsApp renderiza la mención si el texto contiene @<userOnly>
-          const userOnly = authorContact?.id?.user ?? (authorContact.number ?? authorJid.replace('@c.us', ''));
+          const userOnly = authorContact?.id?.user ?? (authorContact.number ?? authorJid.replace("@c.us", ""));
           mensaje = mensaje.replace(/@yo/g, `@${userOnly}`);
         }
       }
 
       const id = contadorId++;
       const job = schedule.scheduleJob(fechaJS, () => {
-        // enviar texto tal cual (con @<user> para las menciones) y options.mentions como array de jids.
         client.sendMessage(msg.from, mensaje, { mentions });
         tareasProgramadas = tareasProgramadas.filter(t => t.id !== id);
       });
 
       tareasProgramadas.push({ id, fecha, mensaje, job, chatId: msg.from });
-      msg.reply(
-        `Mensaje #${id} programado para ${fecha.setLocale("es").toLocaleString({
-          day: "2-digit",
-          month: "2-digit",
-          year: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: true
-        })}: ${mensajeOriginal}`
-      );
+
+      // Confirmación con menciones
+      const authorContact = await msg.getContact();
+      const authorJid = authorContact?.id?._serialized
+        ? authorContact.id._serialized
+        : (authorContact.number ? `${authorContact.number}@c.us` : null);
+
+      let textoConfirmacion = `Mensaje #${id} programado para ${fecha.setLocale("es").toLocaleString({
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true
+      })}: ${mensajeOriginal}`;
+
+      if (mensajeOriginal.includes("@yo") && authorJid) {
+        const userOnly = authorContact?.id?.user ?? (authorContact.number ?? authorJid.replace("@c.us", ""));
+        textoConfirmacion = textoConfirmacion.replace(/@yo/g, `@${userOnly}`);
+        if (!mentions.includes(authorJid)) {
+          mentions.push(authorJid);
+        }
+      }
+
+      await msg.reply(textoConfirmacion, { mentions });
 
     } catch (err) {
       console.error("Error programando mensaje:", err);
