@@ -123,7 +123,7 @@ client.on('message', async msg => {
         model: "gemini-2.5-flash",
         contents: prompt,
         config: {
-          systemInstruction: "Sos normal, si tenes que ser grosero podes. Respuestas de no mas de un parrafo."
+          systemInstruction: "Respuestas de no mas de un parrafo. Si te insultan podes insultar"
         }
       });
 
@@ -144,17 +144,17 @@ client.on('message', async msg => {
       let fecha;
       const fechaStr = args[1];
       const horaStr = args[2];
-      const mensaje = args.slice(3).join(" ");
-
+      const mensajeOriginal = args.slice(3).join(" ");
       const [hora, minutos] = horaStr.split(":").map(Number);
+
+      if (isNaN(hora) || isNaN(minutos)) {
+        return msg.reply("Formato de hora inválido. Usa hh:mm");
+      }
 
       if (fechaStr.toLowerCase() === "hoy") {
         const ahora = DateTime.now().setZone("America/Argentina/Buenos_Aires");
         fecha = ahora.set({ hour: hora, minute: minutos, second: 0, millisecond: 0 });
-
-        if (fecha <= ahora) {
-          return msg.reply("Poné una hora futura.");
-        }
+        if (fecha <= ahora) return msg.reply("Poné una hora futura.");
       }
       else if (fechaStr.toLowerCase() === "mañana") {
         const ahora = DateTime.now().setZone("America/Argentina/Buenos_Aires");
@@ -168,35 +168,70 @@ client.on('message', async msg => {
         );
       }
 
-      // Convierte a objeto JS Date para node-schedule:
       const fechaJS = fecha.toJSDate();
-
       if (!fecha.isValid) return msg.reply("Fecha/hora inválida.");
       if (fechaJS <= new Date()) return msg.reply("La fecha/hora debe ser en el futuro.");
 
+      // Obtener menciones
+      const mentions = [];
+
+      // Si el mensaje ya tiene menciones hechas en WhatsApp
+      if (msg.mentionedIds && msg.mentionedIds.length > 0) {
+        for (const id of msg.mentionedIds) {
+          const contact = await client.getContactById(id);
+          mentions.push(contact);
+        }
+      }
+
+      // @yo → autor
+      if (mensajeOriginal.includes("@yo")) {
+        const authorContact = await msg.getContact();
+        mentions.push(authorContact);
+      }
+
       const id = contadorId++;
       const job = schedule.scheduleJob(fechaJS, () => {
-        client.sendMessage(msg.from, mensaje);
+        client.sendMessage(msg.from, mensajeOriginal, { mentions });
         tareasProgramadas = tareasProgramadas.filter(t => t.id !== id);
       });
 
-      tareasProgramadas.push({ id, fecha, mensaje, job });
-      msg.reply(`Mensaje #${id} programado para ${fecha.setLocale("es").toLocaleString(DateTime.DATETIME_MED)}: ${mensaje}`);
+      tareasProgramadas.push({ id, fecha, mensaje: mensajeOriginal, job, chatId: msg.from });
+
+      msg.reply(
+        `Mensaje #${id} programado para ${fecha.setLocale("es").toLocaleString({
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: true
+        })}: ${mensajeOriginal}`
+      );
 
     } catch (err) {
       console.error("Error programando mensaje:", err);
       msg.reply("Error al programar el mensaje.");
     }
   }
-
+  // Lista solo del chat actual
   if (msg.body === "!listaprog") {
-    if (tareasProgramadas.length === 0) {
-      return msg.reply("No hay mensajes programados.");
+    const listaChat = tareasProgramadas.filter(t => t.chatId === msg.from);
+    if (listaChat.length === 0) {
+      return msg.reply("No hay mensajes programados en este chat.");
     }
-    const lista = tareasProgramadas
-      .map(t => `#${t.id} → ${t.fecha.toLocaleString()} → "${t.mensaje}"`)
+    const lista = listaChat
+      .map(t =>
+        `#${t.id} → ${t.fecha.setLocale("es").toLocaleString({
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: true
+        })} → "${t.mensaje}"`
+      )
       .join("\n");
-    msg.reply("Mensajes programados:\n" + lista);
+    msg.reply("*Mensajes programados en este chat:*\n" + lista);
   }
 
   // Borrar mensaje programado
@@ -213,7 +248,7 @@ client.on('message', async msg => {
 
     tarea.job.cancel();
     tareasProgramadas = tareasProgramadas.filter(t => t.id !== id);
-    msg.reply(`Mensaje programado #${id} cancelado.`);
+    msg.reply(`Mensaje programado *#${id}* cancelado.`);
   }
 
   if (msg.body.startsWith("!resumen")) {
@@ -260,17 +295,17 @@ client.on('message', async msg => {
     const texto = `
 *Lista de comandos disponibles:*
 
-- !memide
-- !facha
-- !programar [dd/mm/yyyy|hoy|mañana] hh:mm mensaje → Programa un mensaje
-- !listaprog → Lista de mensajes programados
-- !borrarprog [id] → Borra un mensaje programado
-- !ia [mensaje] → Pregúntale algo a la IA
-- !resumen [cantMensajes] → Resume últimos mensajes (máx 50)
-- !sorteo → Sortea entre los participantes del grupo
-- @todos → Menciona a todos en el grupo
-- Enviar foto/video/gif con la palabra "Sticker" → Convierte en sticker
-        `.trim();
+- \`!memide\`
+- \`!facha\`
+- \`!programar [dd/mm/yyyy|hoy|mañana] hh:mm mensaje\` → Programa un mensaje
+- \`!listaprog\` → Lista de mensajes programados
+- \`!borrarprog [id]\` → Borra un mensaje programado
+- \`!ia [mensaje]\` → Pregúntale algo a la IA
+- \`!resumen [cantMensajes]\` → Resume últimos mensajes (máx 50)
+- \`!sorteo\` → Sortea entre los participantes del grupo
+- \`@todos\` → Menciona a todos en el grupo
+- Enviar foto/video/gif con la palabra \`Sticker\` → Convierte en sticker
+`.trim();
 
     msg.reply(texto);
   }
