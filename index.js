@@ -268,12 +268,12 @@ client.on('message', async msg => {
     try {
       const args = msg.body.trim().split(/\s+/);
       if (args.length !== 2 || isNaN(parseInt(args[1]))) {
-        return msg.reply("Uso: !resumen [cantMensajes] (1 a 50)");
+        return msg.reply("Uso: !resumen [cantMensajes] (1 a 200)");
       }
 
       let cantidad = parseInt(args[1]);
       if (cantidad < 1) cantidad = 1;
-      if (cantidad > 50) cantidad = 50;
+      if (cantidad > 200) cantidad = 200;
 
       const chat = await msg.getChat();
       const mensajes = await chat.fetchMessages({ limit: cantidad + 1 });
@@ -314,7 +314,7 @@ client.on('message', async msg => {
 - \`!listaprog\` → Lista de mensajes programados
 - \`!borrarprog [id]\` → Borra un mensaje programado
 - \`!ia [mensaje]\` → Pregúntale algo a la IA
-- \`!resumen [cantMensajes]\` → Resume últimos mensajes (máx 50)
+- \`!resumen [cantMensajes]\` → Resume últimos mensajes (máx 200)
 - \`!sorteo\` → Sortea entre los participantes del grupo
 - \`@todos\` → Menciona a todos en el grupo
 - Enviar foto/video/gif con la palabra \`Sticker\` → Convierte en sticker
